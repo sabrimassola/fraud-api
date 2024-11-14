@@ -27,8 +27,9 @@ const detectarFraudePorFecha = (orders, orderDate) => {
 };
 
 // Algoritmo 2: Detección de fraude por monto acumulado de ventas
-const detectarFraudePorMonto = (orders) => {
-  const now = new Date().toISOString().split('T')[0];  // Fecha actual en formato YYYY-MM-DD
+const detectarFraudePorMonto = (orders, orderDate) => {
+  const now = orderDate;
+  //const now = new Date().toISOString().split('T')[0];  // Fecha actual en formato YYYY-MM-DD
   let acum_precio = 0;
   let cont_fecha = 0;
 
