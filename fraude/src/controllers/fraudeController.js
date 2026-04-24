@@ -1,68 +1,79 @@
 const ordersMock = require('../mocks/orderResponseMocks.json');
 
-const valorfraude = 10; 
-const montoMaximo = 10000; 
+const MAX_ORDERS_PER_DAY = 10;
+const MAX_DAILY_AMOUNT = 10000;
 
-//Detección de fraude por cantidad de órdenes en un día
-const detectarFraudePorFecha = (orders, orderDate) => {
-  const now = orderDate;
-  let contador_fraude = 0;
+const getOrderDate = (createdAt) => createdAt.split('T')[0];
 
-  for (let order of orders) {
-    const orderDate = order.created_at.split('T')[0]; 
-    console.log(`Comparando fecha de orden: ${order.created_at.split('T')[0]} con la fecha actual: ${now}`);
-    if (orderDate === now) {
-      contador_fraude++;
-      console.log(`Orden detectada: ${order.order_id}, Contador de fraude: ${contador_fraude}`);
-      if (contador_fraude > valorfraude) {
-        console.log('Fraude detectado por cantidad de órdenes.');
-        return true; 
+const hasExceededDailyOrders = (orders, orderDate) => {
+  let orderCount = 0;
+
+  for (const order of orders) {
+    if (getOrderDate(order.created_at) === orderDate) {
+      orderCount++;
+
+      if (orderCount > MAX_ORDERS_PER_DAY) {
+        return true;
       }
     }
   }
-  console.log('No se detectó fraude por cantidad de órdenes.');
-  return false; 
+
+  return false;
 };
 
-// Detección de fraude por monto acumulado de ventas
-const detectarFraudePorMonto = (orders, orderDate) => {
-  const now = orderDate;
-  let acum_precio = 0;
-  let cont_fecha = 0;
+const hasExceededDailyAmount = (orders, orderDate) => {
+  let accumulatedAmount = 0;
+  let approvedOrdersCount = 0;
 
-  for (let order of orders) {
-    const orderDate = order.created_at.split('T')[0];
-    if (orderDate === now && order.status === 'approved') {
-      acum_precio += order.price;
-      cont_fecha++;
-      console.log(`Monto acumulado: ${acum_precio}, Contador de órdenes: ${cont_fecha}`);
-      if (cont_fecha > valorfraude || acum_precio > montoMaximo) {
-        console.log('Fraude detectado por monto acumulado o cantidad de órdenes.');
-        return true; 
+  for (const order of orders) {
+    const isSameDate = getOrderDate(order.created_at) === orderDate;
+    const isApproved = order.status === 'approved';
+
+    if (isSameDate && isApproved) {
+      accumulatedAmount += order.price;
+      approvedOrdersCount++;
+
+      if (
+        approvedOrdersCount > MAX_ORDERS_PER_DAY ||
+        accumulatedAmount > MAX_DAILY_AMOUNT
+      ) {
+        return true;
       }
     }
   }
-  console.log('No se detectó fraude por monto acumulado.');
-  return false; 
+
+  return false;
 };
 
-
-const verificarFraude = async (req, res) => {
+const verificarFraude = (req, res) => {
   try {
     const { user_id } = req.params;
     const { order_date: orderDate } = req.query;
 
-    console.log("Datos de órdenes:", JSON.stringify(ordersMock));
-    const orders = ordersMock.data;
+    if (!orderDate) {
+      return res.status(400).json({
+        error: 'order_date query parameter is required',
+      });
+    }
 
-    const esFraudePorFecha = detectarFraudePorFecha(orders , orderDate);
-    const esFraudePorMonto = detectarFraudePorMonto(orders , orderDate);
+    const orders = ordersMock.data.filter(
+      (order) => String(order.user_id) === String(user_id)
+    );
 
-    const esFraude = esFraudePorFecha || esFraudePorMonto;
-    res.status(200).json({ is_fraud: esFraude });
+    const isFraudByOrders = hasExceededDailyOrders(orders, orderDate);
+    const isFraudByAmount = hasExceededDailyAmount(orders, orderDate);
+
+    return res.status(200).json({
+      user_id,
+      order_date: orderDate,
+      is_fraud: isFraudByOrders || isFraudByAmount,
+    });
   } catch (error) {
-    console.error('Error al verificar fraude:', error);
-    res.status(500).send('Error al verificar fraude');  
+    console.error('Error checking fraud:', error);
+
+    return res.status(500).json({
+      error: 'Internal server error',
+    });
   }
 };
 
