@@ -1,4 +1,3 @@
-const axios = require('axios');
 const ordersMock = require('../mocks/orderResponseMocks.json');
 
 const valorfraude = 10; // Máximo de órdenes o transacciones permitidas por día
